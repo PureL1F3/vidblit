@@ -1,0 +1,6 @@
+<?php
+
+header('Content-type: application/vnd.apple.mpegurl');
+echo 'hello world';
+
+?>
