@@ -1,6 +1,91 @@
 <?php
-
 header('Content-type: application/vnd.apple.mpegurl');
-echo 'hello world';
 
+include_once('config.php');
+include_once('VidblitDb.php');
+include_once('CloudfrontRepo.php');
+
+openlog('playlist-php', LOG_PID, LOG_USER);
+
+if(!isset($_GET['id']) || !isset($_GET['t']))
+{
+    syslog(LOG_WARNING, 'User error : Missing video id and user token');
+    exit();
+}
+
+
+$db = new VidblitDb($config['database']['vidblit']['host'], $config['database']['vidblit']['user'], $config['database']['vidblit']['pwd'], $config['database']['vidblit']['db']);
+$result = $db->connect();
+if(!$result['ok'])
+{
+    syslog(LOG_WARNING, 'We failed to connect to database - dying');
+    exit();
+}
+
+syslog(LOG_INFO, 'Validating user');
+$token = $_GET['t'];
+$result = $db->user_id_bytoken($token);
+if(!$result['ok'] || is_null($result['result']))
+{
+    syslog(LOG_WARNING, 'Db problem or bad user - dying');
+    echo '';
+    exit();
+}
+$userid = $result['result']['id'];
+
+$id = $_GET['id'];
+syslog(LOG_INFO, "User $userid is trying to access video $id");
+$result = $db->extract_hostnlen_byid($id);
+if(!$result['ok'] || is_null($result['result']))
+{
+    syslog(LOG_WARNING, 'Db problem or bad extract id - dying');
+    exit();
+}
+
+$length = intval($result['result']['length']);
+$host = $result['result']['host'];
+
+$cloud_repo = new CloudfrontRepo($config['cloudfront']['vidblit']['keypairid'], $config['cloudfront']['vidblit']['keypempath']);
+$expiry = $cloud_repo->expiry($length + PLAYLIST_EXPIRY_BUFFER);
+
+syslog(LOG_INFO, 'Getting playlist');
+$playlist_url = '';
+if(is_null($host))
+{
+    syslog(LOG_INFO, 'Getting playlist via cloud');
+    $playlist_url = sprintf($config['cloudfront']['basepath']['extract'], $id) . '/playlist.m3u8';
+    $result = $cloud_repo->signed_url($playlist_url, $expiry);
+    if(!$result['ok'] || is_null($result['result']))
+    {
+        syslog(LOG_WARNING, 'Cloud url gen error - dying');
+        exit();
+    }
+    $playlist_url = $result['result'];
+}
+else
+{
+    syslog(LOG_INFO, 'Getting playlist via host $host');
+    $playlist_url = "http://$host/get_playlist.php?id=$id&t=$token";
+}
+$playlist = file_get_contents($playlist_url);
+
+syslog(LOG_INFO, 'Processing playlist');
+$playlist_lines = explode("\n", $playlist);
+foreach ($playlist_lines as $row)
+{
+    if(preg_match("/.ts$/", $row))
+    {
+        $playlist_url = sprintf($config['cloudfront']['basepath']['extract'], $id) . "/$row";
+        $result = $cloud_repo->signed_url($playlist_url, $expiry);
+        if(!$result['ok'] || is_null($result['result']))
+        {
+            syslog(LOG_WARNING, 'Cloud url gen error - dying');
+            exit();
+        }
+        $row = $result['result'];
+    }
+    echo "$row\n";
+}
+
+closelog();
 ?>
