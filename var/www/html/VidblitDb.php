@@ -46,6 +46,74 @@ class VidblitDB
         return $this->result(true, $value);
     }
 
+    function request_status($userid, $requestid)
+    {
+        syslog(LOG_INFO, "Calling VidblitDb:request_status with param:userid=$userid, requestid=$requestid");
+        $sql_requestid = $this->_con->real_escape_string($requestid);
+        $sql_userid = $this->_con->real_escape_string($userid);
+        $sql = "SELECT e.type, e.title, e.length, e.error, e.location from request r left join extract e on r.extractid=e.id where r.id=$sql_requestid and r.userid=$sql_userid";
+        $result = $this->_con->query($sql);
+        if(!$result)
+        {
+            return $this->mysql_error();
+        }
+        $object = $result->fetch_object();
+        $value = NULL;
+        if($object)
+        {
+            syslog(LOG_INFO, 'Got result'); 
+            $value = array('type' => $object->type, 'title' => $object->title, 'length' => $object->length, 'error' => $object->error, 'available' => !is_null($object->location));
+        }
+        return $this->result(true, $value);
+    }
+
+    function session_create($userid, $token)
+    {
+        syslog(LOG_INFO, "Calling VidblitDb:session_create with param: userid=$userid, token=$token"); 
+        $sql_userid = $this->_con->real_escape_string($userid);
+        $sql_token = $this->_con->real_escape_string($token);
+        $sql = "CALL create_session('$sql_userid', '$sql_token');";
+        $result = $this->_con->query($sql);
+        if(!$result)
+        {
+            return $this->mysql_error();
+        }
+        $this->mysql_clean_buffer();
+        return $this->result(true);
+    }
+
+    function session_kill($token)
+    {
+        syslog(LOG_INFO, "Calling VidblitDb:session_kill with param:token=$token"); 
+        $sql_token = $this->_con->real_escape_string($token);
+        $sql = "CALL kill_session('$sql_token');";
+        $result = $this->_con->query($sql);
+        if(!$result)
+        {
+            return $this->mysql_error();
+        }
+        $this->mysql_clean_buffer();
+        return $this->result(true);
+    }
+
+    function user_create($user, $salt, $hash, $email)
+    {
+        syslog(LOG_INFO, "Calling VidblitDb:user_create with param: user=$user, salt=$salt, hash=$hash, email=$email"); 
+        $sql_user = $this->_con->real_escape_string($user);
+        $sql_salt = $this->_con->real_escape_string($salt);
+        $sql_hash = $this->_con->real_escape_string($hash);
+        $sql_email = $this->_con->real_escape_string($email);
+        $sql = "CALL create_user('$sql_user', '$sql_salt', '$sql_hash', '$sql_email');";
+        $result = $this->_con->query($sql);
+        if(!$result)
+        {
+            return $this->mysql_error();
+        }
+        $object = $result->fetch_object();
+        $this->mysql_clean_buffer();
+        $value = array('id' => $object->userid);
+        return $this->result(true, $value);
+    }
 
     function user_id_bytoken($token)
     {
@@ -69,6 +137,26 @@ class VidblitDB
         return $this->result(true, $value);
     }
 
+    function user_id_byemail($email)
+    {
+        syslog(LOG_INFO, "Calling VidblitDb:user_id_byemail with param: email=$email"); 
+        $sql_email = $this->_con->real_escape_string($email);
+        $sql = "select id from user where email='$sql_email';";
+        $result = $this->_con->query($sql);
+        if(!$result)
+        {
+            return $this->mysql_error();
+        }
+        $object = $result->fetch_object();
+        $value = NULL;
+        if($object)
+        {
+            syslog(LOG_INFO, 'Got result:'.$object->id); 
+            $value = array('id' => $object->id);
+        }
+        return $this->result(true, $value);
+    }
+    
     function extract_hostnlen_byid($id)
     {
         syslog(LOG_INFO, "Calling VidblitDb:extract_hostnlen_byid with param:id=$id"); 

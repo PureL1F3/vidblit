@@ -1,42 +1,40 @@
 <?php
 
-$sql_host = '167.88.34.62';
-$sql_user = 'Brun0';
-$sql_password = '65UB3b3$';
-$sql_db = 'vidblit';
+include_once('config.php');
+include_once('utility.php');
+include_once('VidblitDb.php');
 
 openlog('vidblit-php', LOG_PID, LOG_USER);
-
 syslog(LOG_INFO, 'Starting sequence to log out user');
-syslog(LOG_INFO, 'Connecting to mysql');
-$con = mysqli_connect($sql_host,$sql_user,$sql_password,$sql_db);
-if (mysqli_connect_errno())
+
+# get input values
+$headers = array('HTTP_X_DESCRIPTION' => NULL);
+$result = GetHeaders($headers);
+if(!$result['ok'])
 {
-    syslog(LOG_ERR, 'Error connecting to mysql db:' . mysqli_connect_error());
-    $result =  array('error' => 'Technical difficulties' );
-    echo json_encode($result);
-    exit();
+    finish(false, $config['messages']['BadRequest']);
+}
+$headers = $result['result'];
+
+$token = $headers['HTTP_X_DESCRIPTION'];
+
+# setup db connection
+$db = new VidblitDb($config['database']['vidblit']['host'], $config['database']['vidblit']['user'], $config['database']['vidblit']['pwd'], $config['database']['vidblit']['db']);
+$result = $db->connect();
+if(!$result['ok'])
+{
+    finish(false, $config['messages']['TechFail']);
 }
 
-syslog(LOG_INFO, 'Killing session token in mysql');
-$token = $_SERVER['HTTP_X_DESCRIPTION'];
-$sql_token = $con->real_escape_string($token);
-if(strlen($sql_token_ <= 600))
+# validate user
+$result = $db->session_kill($token);
+if(!$result['ok'])
 {
-    $sql = "CALL kill_session('$sql_token');";
-    $result = $con->query($sql);
-    if(!$result)
-    {
-        syslog(LOG_ERR, 'Error killing session token' . mysqli_error($con));
-        $result =  array('error' => 'Technical difficulties' );
-        echo json_encode($result);
-        exit();
-    }
+    syslog(LOG_WARNING, 'Db problem or bad user - dying');
+    finish(false, $config['messages']['BadRequest']);
 }
 
-syslog(LOG_INFO, 'Reporting successful kill of session');
-$result = array('success' => true);
-echo json_encode($result);
+finish(true, $result['result']);
 
 closelog();
 ?>

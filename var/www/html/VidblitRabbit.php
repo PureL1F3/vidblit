@@ -1,6 +1,5 @@
 <?php
 require_once __DIR__ . '/vendor/autoload.php';
-include_once('config.php');
 
 use PhpAmqpLib\Connection\AMQPConnection;
 use PhpAmqpLib\Message\AMQPMessage;
@@ -52,22 +51,13 @@ class VidblitRabbit
     }
 }
 
-function show($line)
-{
-    echo "<br/>$line<br/>";
-}
+// $rabbit = new VidblitRabbit($config['rabbit']['connection']['host'], $config['rabbit']['connection']['port'], $config['rabbit']['connection']['user'], $config['rabbit']['connection']['pwd'], $config['rabbit']['q']);
+// $rabbit->connect();
 
-
-$rabbit = new VidblitRabbit($config['rabbit']['connection']['host'], $config['rabbit']['connection']['port'], $config['rabbit']['connection']['user'], $config['rabbit']['connection']['pwd'], $config['rabbit']['q']);
-$rabbit->connect();
-
-var_dump($config);
-
-
-show("");
-show("Testing publish_extract_msg");
-$result = $rabbit->publish_extract_msg('12', 'blackbottom');
-var_dump($result);
+// show("");
+// show("Testing publish_extract_msg");
+// $result = $rabbit->publish_extract_msg('12', 'blackbottom');
+// var_dump($result);
 
 
 ?>
